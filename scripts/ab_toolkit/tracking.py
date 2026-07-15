@@ -113,10 +113,20 @@ def maybe_append_to_google_sheets(row: TrackingRow) -> str | None:
         client = gspread.authorize(creds)
         sheet = client.open_by_key(sheet_id).sheet1
 
-        if sheet.row_count == 0 or not sheet.get_all_values():
-            sheet.append_row(CSV_COLUMNS)
-        sheet.append_row([row.as_dict()[c] for c in CSV_COLUMNS])
-        return f"Linha adicionada ao Google Sheets (planilha {sheet_id})."
+        # Não usa append_row (a heurística de "próxima linha vazia" do gspread
+        # pode deixar linhas em branco no meio). Em vez disso, lê o estado atual
+        # e escreve por índice explícito, de forma determinística.
+        # Nota: get_all_values() numa planilha recém-limpa (.clear()) retorna
+        # [[]] (uma linha "vazia"), não [] — por isso filtramos linhas sem
+        # nenhum conteúdo em vez de checar só a lista estar vazia.
+        existing_rows = [r for r in sheet.get_all_values() if any(cell.strip() for cell in r)]
+        if not existing_rows:
+            sheet.update(range_name="A1", values=[CSV_COLUMNS])
+            next_row = 2
+        else:
+            next_row = len(existing_rows) + 1
+        sheet.update(range_name=f"A{next_row}", values=[[row.as_dict()[c] for c in CSV_COLUMNS]])
+        return f"Linha adicionada ao Google Sheets (planilha {sheet_id}, linha {next_row})."
     except ImportError:
         return "GOOGLE_SHEETS_* configurado mas dependências (gspread/google-auth) não instaladas — pulei a escrita no Sheets."
     except Exception as exc:  # noqa: BLE001 - integração best-effort, não pode quebrar o pipeline
