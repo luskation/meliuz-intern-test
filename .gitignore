@@ -1,0 +1,19 @@
+# Ambiente virtual Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Segredos / credenciais (ex: GOOGLE_SHEETS_CREDENTIALS_JSON salvo em arquivo local)
+.env
+.env.*
+*credentials*.json
+
+# Configuração local do Claude Code (específica desta máquina)
+.claude/settings.local.json
+
+# Lixo de SO / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
