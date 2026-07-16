@@ -34,6 +34,8 @@ class GroupSummary:
     margin_sum: float
     margin_mean: float
     cashback_pct_mean: float
+    margin_per_buyer: float
+    margin_pct_gmv: float
 
 
 @dataclass
@@ -60,21 +62,35 @@ class DecisionResult:
     confidence_note: str = ""
     excluded_group_notes: list[str] = field(default_factory=list)
 
+    @property
+    def best_comparison(self) -> "Comparison | None":
+        """Melhor variante por uplift médio de margem, mesmo que perdedora —
+        usado pelo tracking para não deixar a planilha sem números quando a
+        baseline vence."""
+        if not self.comparisons:
+            return None
+        return max(self.comparisons, key=lambda c: c.mean_uplift_margin)
+
 
 def _summarize_group(df: pd.DataFrame, group: str) -> GroupSummary:
     grp = df[df["group"] == group]
     margin = grp["commission"] - grp["cashback"]
     cashback_pct = grp["cashback"] / grp["gmv"]
+    margin_sum = float(margin.sum())
+    buyers_sum = float(grp["buyers"].sum())
+    gmv_sum = float(grp["gmv"].sum())
     return GroupSummary(
         group=group,
         days=len(grp),
         buyers_mean=float(grp["buyers"].mean()),
         commission_sum=float(grp["commission"].sum()),
         cashback_sum=float(grp["cashback"].sum()),
-        gmv_sum=float(grp["gmv"].sum()),
-        margin_sum=float(margin.sum()),
+        gmv_sum=gmv_sum,
+        margin_sum=margin_sum,
         margin_mean=float(margin.mean()),
         cashback_pct_mean=float(cashback_pct.mean()),
+        margin_per_buyer=margin_sum / buyers_sum if buyers_sum else float("nan"),
+        margin_pct_gmv=margin_sum / gmv_sum if gmv_sum else float("nan"),
     )
 
 
@@ -227,6 +243,18 @@ def analyze(df: pd.DataFrame, quality: QualityReport) -> DecisionResult:
         result.decision_text = (
             f"Sem decisão estatisticamente segura ainda: manter {quality.baseline_group} rodando por enquanto. "
             "Teste t e Wilcoxon discordam para pelo menos uma variante — ver ressalvas para dias adicionais estimados."
+        )
+    elif losers and len(losers) == len(variants):
+        result.decision_text = (
+            f"Manter {quality.baseline_group} (baseline) com confiança: todas as {len(variants)} variante(s) "
+            f"testada(s) perderam da baseline com significância estatística (p < {ALPHA} em teste t e Wilcoxon) — "
+            "não é apenas 'sem evidência de ganho', é evidência de que escalar qualquer uma delas reduziria a margem."
+        )
+    elif losers:
+        piores = ", ".join(c.group for c in losers)
+        result.decision_text = (
+            f"Manter {quality.baseline_group} (baseline). {piores} perde(m) com significância estatística; "
+            "as demais variantes não mostraram diferença significativa na janela de decisão."
         )
     else:
         result.decision_text = (

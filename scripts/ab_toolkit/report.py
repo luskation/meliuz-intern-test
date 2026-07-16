@@ -30,6 +30,11 @@ def _quality_section(parse: ParseReport, quality: QualityReport) -> str:
         parsing_notes.append(f"{parse.linhas_em_branco_removidas} linha(s) em branco removida(s)")
     if parse.linhas_duplicadas_removidas:
         parsing_notes.append(f"{parse.linhas_duplicadas_removidas} linha(s) duplicada(s) removida(s)")
+    if parse.linhas_duplicadas_chave_removidas:
+        parsing_notes.append(
+            f"{parse.linhas_duplicadas_chave_removidas} linha(s) com mesma (data, grupo, parceiro) mas valores "
+            "diferentes removida(s) — mantida só a primeira ocorrência"
+        )
     if parse.linhas_invalidas_removidas:
         parsing_notes.append(
             f"{parse.linhas_invalidas_removidas} linha(s) inválida(s) removida(s) ("
@@ -69,6 +74,12 @@ def _quality_section(parse: ParseReport, quality: QualityReport) -> str:
             "a comparação pareada por data já neutraliza esse efeito automaticamente.\n"
         )
 
+    if quality.population_imbalance_notes:
+        lines.append("**⚠️ Diferença de volume de compradores entre grupos:**\n")
+        for note in quality.population_imbalance_notes:
+            lines.append(f"- {note}")
+        lines.append("")
+
     if quality.missing_dates:
         lines.append("**Datas ausentes por grupo:**\n")
         for g, dates in quality.missing_dates.items():
@@ -99,6 +110,17 @@ def _summary_table(decision: DecisionResult) -> str:
             f"{_fmt_brl(s.cashback_sum)} | {_fmt_brl(s.gmv_sum)} | {_fmt_brl(s.margin_sum)} | "
             f"{_fmt_brl(s.margin_mean)} | {s.cashback_pct_mean:.2%} |"
         )
+    return header + "\n".join(rows) + "\n"
+
+
+def _normalized_table(decision: DecisionResult) -> str:
+    header = (
+        "| Grupo | Margem por comprador | Margem como % da GMV |\n|---|---|---|\n"
+    )
+    rows = []
+    for group, s in decision.summaries.items():
+        tag = " (baseline)" if group == decision.baseline_group else ""
+        rows.append(f"| {group}{tag} | {_fmt_brl(s.margin_per_buyer)} | {s.margin_pct_gmv:.2%} |")
     return header + "\n".join(rows) + "\n"
 
 
@@ -158,6 +180,14 @@ def build_report(
     lines.append("## Resumo por grupo\n")
     lines.append(_summary_table(decision))
 
+    lines.append(
+        "\n**Métricas normalizadas (checagem de sensibilidade):** a margem total em R$ favorece grupos com "
+        "mais volume — se os grupos não têm o mesmo tamanho de tráfego, isso pode enviesar a comparação em "
+        "R$ absolutos mesmo sem nenhum efeito real do cashback. As métricas abaixo (por comprador e como % "
+        "da GMV) não dependem do tamanho do grupo e servem para confirmar que a decisão não é só um artefato de volume.\n"
+    )
+    lines.append(_normalized_table(decision))
+
     if decision.comparisons:
         lines.append("\n## Comparação estatística (margem líquida diária, pareada por data)\n")
         lines.append(
@@ -167,21 +197,46 @@ def build_report(
         )
         lines.append(_comparison_table(decision))
 
+    lines.append("\n## Limitações da análise\n")
+    lines.append(
+        "- **Autocorrelação temporal:** os dias não são independentes entre si (efeito dia-da-semana, "
+        "sazonalidade) — o teste t e o Wilcoxon assumem observações pareadas independentes, o que é uma "
+        "simplificação comum, mas vale ter em mente ao interpretar o p-valor como probabilidade exata.\n"
+        "- **Dados agregados por dia, não por usuário:** não é possível medir variância entre usuários "
+        "dentro do mesmo dia, nem detectar heterogeneidade de efeito por segmento.\n"
+        "- **Múltiplas comparações:** quando há mais de uma variante, cada uma é comparada à baseline a "
+        "α = 0,05 sem correção (ex.: Bonferroni) — com mais variantes, a chance de um falso positivo "
+        "isolado sobe.\n"
+    )
+
     lines.append("\n## Próximos passos\n")
+    next_steps = []
     if decision.winner:
-        lines.append(
+        next_steps.append(
             f"- Escalar **{decision.winner}** para 100% do tráfego e monitorar margem líquida nas primeiras semanas pós-rollout."
         )
     if quality.excluded_groups:
-        lines.append(
+        next_steps.append(
             "- Corrigir a coleta de dados dos grupos excluídos (ver seção de qualidade) antes de reaproveitar esse teste como referência."
         )
     if quality.window_truncated:
-        lines.append(
+        next_steps.append(
             "- Investigar por que os grupos convergiram de patamar de cashback após a janela estável — "
             "se foi decisão de negócio, o teste já estava sendo encerrado; se não, é um problema de execução do teste."
         )
+    if quality.population_imbalance_notes:
+        next_steps.append(
+            "- Confirmar junto ao time de instrumentação se a alocação de tráfego entre variantes foi "
+            "igualitária; se não foi por desenho, considerar a métrica normalizada (margem/comprador) como "
+            "critério principal em vez da margem absoluta."
+        )
     if any(c.verdict in ("INCONCLUSIVE", "NO_DIFFERENCE") for c in decision.comparisons):
-        lines.append("- Para variantes inconclusivas, considerar estender a coleta pelos dias adicionais estimados acima antes de decidir.")
+        next_steps.append("- Para variantes inconclusivas, considerar estender a coleta pelos dias adicionais estimados acima antes de decidir.")
+    if not next_steps:
+        next_steps.append(
+            f"- Nenhuma ação corretiva pendente: manter **{decision.baseline_group}** e seguir monitorando "
+            "a margem líquida normalmente até o próximo teste."
+        )
+    lines.extend(next_steps)
 
     return "\n".join(lines) + "\n"

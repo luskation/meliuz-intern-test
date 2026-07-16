@@ -17,3 +17,8 @@ Thumbs.db
 desktop.ini
 .DS_Store
 .vscode/
+
+# Notas internas de processo / enunciado do teste — não fazem parte da entrega pública
+CLAUDE.md
+Copy of TESTE*.md
+revisaocriticaprojeto.md

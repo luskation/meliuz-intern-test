@@ -43,6 +43,7 @@ class ParseReport:
     linhas_brutas: int = 0
     linhas_em_branco_removidas: int = 0
     linhas_duplicadas_removidas: int = 0
+    linhas_duplicadas_chave_removidas: int = 0
     linhas_invalidas_removidas: int = 0
     linhas_finais: int = 0
     motivos_invalidas: list[str] = field(default_factory=list)
@@ -124,6 +125,14 @@ def load_dataset(path: str) -> tuple[pd.DataFrame, ParseReport]:
     df = df.loc[~drop_mask].copy()
 
     df["buyers"] = df["buyers"].astype(int)
+
+    # Duplicata de (date, group, partner) com VALORES diferentes não é pega pelo
+    # dedup de linha inteira acima (linhas diferentes não batem no .duplicated()).
+    # Sem isso, o set_index("date") em stats.py pareia dias errado silenciosamente.
+    key_dup_mask = df.duplicated(subset=["date", "group", "partner"], keep="first")
+    report.linhas_duplicadas_chave_removidas = int(key_dup_mask.sum())
+    df = df.loc[~key_dup_mask].copy()
+
     df = df.sort_values(["group", "date"]).reset_index(drop=True)
 
     report.linhas_finais = len(df)

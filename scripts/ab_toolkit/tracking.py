@@ -25,6 +25,7 @@ CSV_COLUMNS = [
     "grupo_vencedor",
     "resultado",
     "decisao",
+    "melhor_variante_testada",
     "uplift_margem_dia_brl",
     "p_valor_t",
     "p_valor_wilcoxon",
@@ -43,6 +44,7 @@ class TrackingRow:
     grupo_vencedor: str
     resultado: str
     decisao: str
+    melhor_variante_testada: str
     uplift_margem_dia_brl: str
     p_valor_t: str
     p_valor_wilcoxon: str
@@ -60,7 +62,10 @@ def build_tracking_row(
     quality_warnings: list[str],
     report_path: str,
 ) -> TrackingRow:
-    winner_cmp = next((c for c in decision.comparisons if c.group == decision.winner), None)
+    # Referência para uplift/p-valor: a melhor variante testada, mesmo que
+    # tenha perdido da baseline — assim a planilha de histórico não fica com
+    # colunas vazias só porque a baseline venceu.
+    ref_cmp = decision.best_comparison
     ressalvas = "; ".join(quality_warnings) if quality_warnings else ""
     return TrackingRow(
         nome_teste=f"Cashback {partner}",
@@ -71,10 +76,11 @@ def build_tracking_row(
         grupo_vencedor=decision.winner or "",
         resultado="vencedor definido" if decision.winner else "sem vencedor / manter baseline",
         decisao=decision.decision_text,
-        uplift_margem_dia_brl=f"{winner_cmp.mean_uplift_margin:.2f}" if winner_cmp else "",
-        p_valor_t=f"{winner_cmp.t_pvalue:.4f}" if winner_cmp else "",
+        melhor_variante_testada=ref_cmp.group if ref_cmp else "",
+        uplift_margem_dia_brl=f"{ref_cmp.mean_uplift_margin:.2f}" if ref_cmp else "",
+        p_valor_t=f"{ref_cmp.t_pvalue:.4f}" if ref_cmp else "",
         p_valor_wilcoxon=(
-            f"{winner_cmp.wilcoxon_pvalue:.4f}" if winner_cmp and winner_cmp.wilcoxon_pvalue is not None else ""
+            f"{ref_cmp.wilcoxon_pvalue:.4f}" if ref_cmp and ref_cmp.wilcoxon_pvalue is not None else ""
         ),
         ressalvas=ressalvas,
         link_relatorio=report_path,

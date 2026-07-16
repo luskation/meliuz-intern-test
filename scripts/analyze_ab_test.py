@@ -57,16 +57,16 @@ def main() -> int:
     reports_dir = Path(args.reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = reports_dir / f"{input_path.stem}.md"
-    markdown = report.build_report(partner, str(input_path), parse_report, quality_report, decision)
+    markdown = report.build_report(partner, input_path.as_posix(), parse_report, quality_report, decision)
     report_path.write_text(markdown, encoding="utf-8")
     print(f"Relatório salvo em {report_path}")
 
     row = tracking.build_tracking_row(
         partner=partner,
-        dataset_path=str(input_path),
+        dataset_path=input_path.as_posix(),
         decision=decision,
         quality_warnings=quality_report.warnings,
-        report_path=str(report_path),
+        report_path=report_path.as_posix(),
     )
     tracking.append_to_csv(row, args.tracking_csv)
     print(f"Linha de acompanhamento gravada em {args.tracking_csv}")

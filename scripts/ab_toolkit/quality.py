@@ -22,6 +22,8 @@ BUG_EQUALITY_FRACTION_THRESHOLD = 0.90
 REGIME_RELATIVE_TOLERANCE = 0.12
 REGIME_MIN_CONSECUTIVE_DAYS = 2
 PEAK_QUANTILE = 0.90
+POPULATION_RATIO_LOW = 0.80
+POPULATION_RATIO_HIGH = 1.20
 
 
 @dataclass
@@ -34,6 +36,7 @@ class QualityReport:
     regime_events: list[str] = field(default_factory=list)
     simultaneous_peak_dates: list[date] = field(default_factory=list)
     missing_dates: dict[str, list[date]] = field(default_factory=dict)
+    population_imbalance_notes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -112,6 +115,35 @@ def _detect_missing_dates(df: pd.DataFrame, groups: list[str]) -> dict[str, list
     return missing
 
 
+def _detect_population_imbalance(df: pd.DataFrame, baseline: str, groups: list[str]) -> list[str]:
+    """Sinaliza quando o volume de compradores de uma variante é
+    consistentemente muito diferente do baseline (fora de [0.8, 1.2]).
+    Não afirma que é bug — só que a métrica de margem ABSOLUTA pode estar
+    misturando "efeito do cashback" com "tamanho da fatia de tráfego", e que
+    vale olhar métricas normalizadas antes de confiar só na margem em R$."""
+    notes = []
+    if baseline not in groups:
+        return notes
+    base = df[df["group"] == baseline].set_index("date")["buyers"]
+    for group in groups:
+        if group == baseline:
+            continue
+        variant = df[df["group"] == group].set_index("date")["buyers"]
+        common = base.index.intersection(variant.index)
+        if len(common) < 10:
+            continue
+        ratio = (variant.loc[common] / base.loc[common])
+        mean_ratio = float(ratio.mean())
+        if mean_ratio < POPULATION_RATIO_LOW or mean_ratio > POPULATION_RATIO_HIGH:
+            notes.append(
+                f"{group} tem em média {mean_ratio:.0%} do volume diário de compradores de {baseline} "
+                f"(razão estável dia a dia) — pode ser efeito real do cashback ou diferença de alocação de "
+                "tráfego entre variantes; a margem ABSOLUTA por dia favorece o grupo com mais volume "
+                "independentemente da causa, então vale conferir as métricas normalizadas (margem/comprador, margem/GMV) antes de decidir só pela margem em R$."
+            )
+    return notes
+
+
 def _select_baseline(df: pd.DataFrame, usable_groups: list[str]) -> str:
     if "Grupo 1" in usable_groups:
         return "Grupo 1"
@@ -150,5 +182,9 @@ def run_quality_checks(df: pd.DataFrame) -> QualityReport:
 
     report.simultaneous_peak_dates = _detect_simultaneous_peaks(df, usable_groups)
     report.missing_dates = _detect_missing_dates(df, all_groups)
+    if report.baseline_group:
+        report.population_imbalance_notes = _detect_population_imbalance(
+            df, report.baseline_group, usable_groups
+        )
 
     return report

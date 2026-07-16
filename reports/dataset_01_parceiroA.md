@@ -1,10 +1,10 @@
 # Relatório de Teste A/B de Cashback — Parceiro A
 
-*Gerado automaticamente em 2026-07-15 a partir de `data\dataset_01_parceiroA.csv`.*
+*Gerado automaticamente em 2026-07-15 a partir de `data/dataset_01_parceiroA.csv`.*
 
 ## Decisão recomendada
 
-**Manter Grupo 1 (baseline). Nenhuma variante superou a baseline com significância estatística na janela de decisão.**
+**Manter Grupo 1 (baseline) com confiança: todas as 2 variante(s) testada(s) perderam da baseline com significância estatística (p < 0.05 em teste t e Wilcoxon) — não é apenas 'sem evidência de ganho', é evidência de que escalar qualquer uma delas reduziria a margem.**
 
 
 **Pergunta central:** qual variante de cashback devemos escalar para 100% do tráfego? Baseline de comparação: **Grupo 1** (convenção de nomenclatura / menor % de cashback).
@@ -34,6 +34,15 @@ Por isso, a decisão abaixo considera apenas a janela estável **2011-01-01 a 20
 | Grupo 3 | 53 | 151 | R$ 535.226,00 | R$ 387.822,00 | R$ 4.865.459,00 | R$ 147.404,00 | R$ 2.781,21 | 7.97% |
 
 
+**Métricas normalizadas (checagem de sensibilidade):** a margem total em R$ favorece grupos com mais volume — se os grupos não têm o mesmo tamanho de tráfego, isso pode enviesar a comparação em R$ absolutos mesmo sem nenhum efeito real do cashback. As métricas abaixo (por comprador e como % da GMV) não dependem do tamanho do grupo e servem para confirmar que a decisão não é só um artefato de volume.
+
+| Grupo | Margem por comprador | Margem como % da GMV |
+|---|---|---|
+| Grupo 1 (baseline) | R$ 45,85 | 7.97% |
+| Grupo 2 | R$ 33,47 | 5.50% |
+| Grupo 3 | R$ 18,43 | 3.03% |
+
+
 ## Comparação estatística (margem líquida diária, pareada por data)
 
 Teste t pareado + Wilcoxon (α = 0,05) sobre `comissão − cashback` de cada dia, comparando cada variante à baseline. Uma variante só é considerada vencedora se os dois testes concordarem.
@@ -42,6 +51,13 @@ Teste t pareado + Wilcoxon (α = 0,05) sobre `comissão − cashback` de cada di
 |---|---|---|---|---|
 | Grupo 2 | R$ -781,32 | 0.0000 | 0.0000 | ❌ Perde da baseline (significativo) |
 | Grupo 3 | R$ -2.638,98 | 0.0000 | 0.0000 | ❌ Perde da baseline (significativo) |
+
+
+## Limitações da análise
+
+- **Autocorrelação temporal:** os dias não são independentes entre si (efeito dia-da-semana, sazonalidade) — o teste t e o Wilcoxon assumem observações pareadas independentes, o que é uma simplificação comum, mas vale ter em mente ao interpretar o p-valor como probabilidade exata.
+- **Dados agregados por dia, não por usuário:** não é possível medir variância entre usuários dentro do mesmo dia, nem detectar heterogeneidade de efeito por segmento.
+- **Múltiplas comparações:** quando há mais de uma variante, cada uma é comparada à baseline a α = 0,05 sem correção (ex.: Bonferroni) — com mais variantes, a chance de um falso positivo isolado sobe.
 
 
 ## Próximos passos
