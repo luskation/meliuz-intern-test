@@ -20,7 +20,7 @@ Hoje, cada análise de teste A/B leva de 2 a 4 horas e o resultado depende de qu
 python scripts/analyze_ab_test.py --input data/dataset_01_parceiroA.csv
 ```
 
-**Saída:** relatório Markdown apresentável a gestor + linha na planilha de acompanhamento (CSV local **e** Google Sheets). Para analisar um teste novo, basta trocar o `--input` — funciona com qualquer número de variantes, qualquer parceiro, qualquer período.
+**Saída:** relatório Markdown apresentável + linha na planilha de acompanhamento (CSV local **e** Google Sheets). Para analisar um teste novo, basta trocar o `--input` — funciona com qualquer número de variantes, qualquer parceiro, qualquer período.
 
 📈 **Planilha pública de acompanhamento:** [Google Sheets — Testes A/B rodados](https://docs.google.com/spreadsheets/d/1hOeHYmpwezzxMdAayZMLVnxn50PdaJfb-h5qr_OUlZU)
 
@@ -38,8 +38,7 @@ Relatórios completos, com números, ressalvas e próximos passos: [`reports/`](
 
 ---
 
-## 🕵️ O diferencial: os dados mentem, a ferramenta percebe
-
+## 🕵️ Análise geral dos dados
 Os 3 datasets fornecidos continham **armadilhas reais** — e todas foram detectadas **automaticamente**, por checagens genéricas (nada foi hardcoded para um parceiro específico):
 
 ### 🪤 Armadilha 1 — O teste que deixou de ser um teste *(Parceiro A)*
